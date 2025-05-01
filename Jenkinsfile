@@ -12,11 +12,17 @@ pipeline {
             }
         }
 
-        stage('Checkout') {
-            steps {
-                git branch: 'main', url: 'https://github.com/gokul-badrappan/register-app'
+       stage('Checkout') {
+    steps {
+        git branch: 'main', url: 'https://github.com/gokul-badrappan/register-app'
+        script {
+            // Check if app.war exists
+            if (!fileExists('app.war')) {
+                error "app.war not found, cannot proceed with Docker build."
             }
         }
+    }
+}
 
         stage('Build Docker Image') {
             steps {
