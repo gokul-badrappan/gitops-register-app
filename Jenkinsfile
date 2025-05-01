@@ -12,17 +12,23 @@ pipeline {
             }
         }
 
-       stage('Checkout') {
-    steps {
-        git branch: 'main', url: 'https://github.com/gokul-badrappan/register-app'
-        script {
-            // Check if app.war exists
-            if (!fileExists('app.war')) {
-                error "app.war not found, cannot proceed with Docker build."
+        stage('Fetch WAR from CI Job') {
+            steps {
+                // Copy the app.war file from the CI job artifacts
+                copyArtifacts(
+                    projectName: 'register-app-ci', // Replace with your CI job name
+                    selector: lastSuccessful(),
+                    filter: 'docker-context/app.war', // Path where app.war is located in CI
+                    target: 'docker-context/' // Path where it should be placed in CD workspace
+                )
+                script {
+                    // Check if app.war exists after fetching
+                    if (!fileExists('docker-context/app.war')) {
+                        error "app.war not found, cannot proceed with Docker build."
+                    }
+                }
             }
         }
-    }
-}
 
         stage('Build Docker Image') {
             steps {
