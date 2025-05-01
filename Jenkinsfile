@@ -1,39 +1,80 @@
 pipeline {
-    agent { label "Jenkins-Agent" }
-
+    agent any
     environment {
-        APP_NAME = "register-app-pipeline"
+        REGISTRY = 'gcr.io'
+        IMAGE_NAME = 'gokul0880/register-app-pipeline'
+        TAG = 'latest'
     }
-
     stages {
-        // 🚫 Removed "Cleanup Workspace" stage
-
-        stage("Update the Deployment Tags") {
+        stage('Cleanup Workspace') {
             steps {
-                sh """
-                   echo Before updating deployment.yaml:
-                   cat deployment.yaml
-
-                   sed -i 's|${APP_NAME}.*|${APP_NAME}:${IMAGE_TAG}|g' deployment.yaml
-
-                   echo After updating deployment.yaml:
-                   cat deployment.yaml
-                """
+                cleanWs()  // Cleans up the workspace before starting the build
             }
         }
 
-        stage("Push the changed deployment file to Git") {
+        stage('Checkout') {
             steps {
-                sh """
-                   git config --global user.name "gokul-badrappan"
-                   git config --global user.email "gokul0880@gmail.com"
-                   git add deployment.yaml
-                   git commit -m "Updated Deployment Manifest"
-                """
-                withCredentials([gitUsernamePassword(credentialsId: 'github', gitToolName: 'Default')]) {
-                    sh "git push https://github.com/gokul-badrappan/gitops-register-app main"
+                git branch: 'main', url: 'https://github.com/gokul0880/register-app-pipeline.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build the Docker image
+                    docker.build("${IMAGE_NAME}:${TAG}")
                 }
             }
+        }
+
+        stage('Push to Registry') {
+            steps {
+                script {
+                    // Push the image to the container registry
+                    docker.withRegistry("https://${REGISTRY}", 'gcr-token') {
+                        docker.image("${IMAGE_NAME}:${TAG}").push()
+                    }
+                }
+            }
+        }
+
+        stage('Trivy Scan for Vulnerabilities') {
+            steps {
+                script {
+                    // Run Trivy to scan the Docker image for vulnerabilities
+                    sh 'docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:${TAG} --no-progress --scanners vuln --exit-code 0 --severity HIGH,CRITICAL --format table --skip-java'
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    // Apply Kubernetes manifests for deployment
+                    sh 'kubectl apply -f k8s/deployment.yaml'
+                }
+            }
+        }
+
+        stage('Cleanup Docker Images') {
+            steps {
+                script {
+                    // Clean up Docker images to free up space
+                    sh 'docker system prune -f'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build and deployment succeeded!'
+        }
+        failure {
+            echo 'Build or deployment failed.'
+        }
+        always {
+            cleanWs()  // Clean workspace again after the pipeline finishes
         }
     }
 }
