@@ -17,12 +17,13 @@ pipeline {
                 // Copy the app.war file from the CI job artifacts
                 copyArtifacts(
                     projectName: 'register-app-ci', // Replace with your CI job name
-                    selector: lastSuccessful(),
+                    selector: lastBuild(), // Fetch the most recent build's artifacts
                     filter: 'docker-context/app.war', // Path where app.war is located in CI
                     target: 'docker-context/' // Path where it should be placed in CD workspace
                 )
                 script {
-                    // Check if app.war exists after fetching
+                    // Debugging: List contents of docker-context to check if app.war is copied correctly
+                    sh 'ls -la docker-context/'  // Check if app.war is in docker-context
                     if (!fileExists('docker-context/app.war')) {
                         error "app.war not found, cannot proceed with Docker build."
                     }
