@@ -1,78 +1,50 @@
 pipeline {
-    agent any
+    agent { label "Jenkins-Agent" }
+
     environment {
-        REGISTRY = 'gcr.io'
-        IMAGE_NAME = 'gokul0880/register-app-pipeline'
-        TAG = 'latest'
+        APP_NAME = "register-app-pipeline"
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
-        stage('Prepare Workspace') {
+        stage("Cleanup Workspace") {
             steps {
                 cleanWs()
-                // Show directory structure for debugging
-                sh 'ls -la'
-                sh 'ls -la docker-context/'
-                script {
-                    // Ensure WAR file is available
-                    if (!fileExists('docker-context/app.war')) {
-                        error "app.war not found in docker-context/. Make sure it is available before running this pipeline."
-                    }
-                    if (!fileExists('docker-context/Dockerfile')) {
-                        error "Dockerfile not found in docker-context/. Please include Dockerfile."
-                    }
+            }
+        }
+
+        stage("Checkout from SCM") {
+            steps {
+                git branch: 'main',
+                    credentialsId: 'github',
+                    url: 'https://github.com/gokul-badrappan/gitops-register-app'
+            }
+        }
+
+        stage("Update the Deployment Tags") {
+            steps {
+                sh """
+                   echo "Before update:"
+                   cat deployment.yaml
+                   sed -i 's|${APP_NAME}:.*|${APP_NAME}:${IMAGE_TAG}|g' deployment.yaml
+                   echo "After update:"
+                   cat deployment.yaml
+                """
+            }
+        }
+
+        stage("Push the changed deployment file to Git") {
+            steps {
+                withCredentials([gitUsernamePassword(credentialsId: 'github', gitToolName: 'Default')]) {
+                    sh """
+                       git config --global user.name "gokul-badrappan"
+                       git config --global user.email "gokul0880@gmail.com"
+                       git add deployment.yaml
+                       git commit -m "Updated Deployment Manifest to ${APP_NAME}:${IMAGE_TAG}" || echo "No changes to commit"
+                       git push https://github.com/gokul-badrappan/gitops-register-app main
+                    """
                 }
             }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    docker.build("${IMAGE_NAME}:${TAG}", "docker-context/")
-                }
-            }
-        }
-
-        stage('Push to Registry') {
-            steps {
-                script {
-                    docker.withRegistry("https://${REGISTRY}", 'gcr-token') {
-                        docker.image("${IMAGE_NAME}:${TAG}").push()
-                    }
-                }
-            }
-        }
-
-        stage('Trivy Scan for Vulnerabilities') {
-            steps {
-                script {
-                    sh 'docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:${TAG} --no-progress --scanners vuln --exit-code 0 --severity HIGH,CRITICAL --format table --skip-java'
-                }
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                sh 'kubectl apply -f k8s/deployment.yaml'
-            }
-        }
-
-        stage('Cleanup Docker Images') {
-            steps {
-                sh 'docker system prune -f'
-            }
-        }
-    }
-
-    post {
-        success {
-            echo 'Build and deployment succeeded!'
-        }
-        failure {
-            echo 'Build or deployment failed.'
-        }
-        always {
-            cleanWs()
         }
     }
 }
