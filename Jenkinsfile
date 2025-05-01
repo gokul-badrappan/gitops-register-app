@@ -21,17 +21,17 @@ pipeline {
             }
         }
 
-        stage("Update the Deployment Tags") {
-            steps {
-                sh """
-                   echo "Before update:"
-                   cat deployment.yaml
-                   sed -i 's|${APP_NAME}:.*|${APP_NAME}:${IMAGE_TAG}|g' deployment.yaml
-                   echo "After update:"
-                   cat deployment.yaml
-                """
-            }
-        }
+       stage("Update the Deployment Tags") {
+    steps {
+        sh """
+            echo "Before update:"
+            cat deployment.yaml
+            sed -i "s|image:.*|image: ${APP_NAME}:${IMAGE_TAG}|g" deployment.yaml
+            echo "After update:"
+            cat deployment.yaml
+        """
+    }
+}
 
         stage("Push the changed deployment file to Git") {
             steps {
