@@ -14,7 +14,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/gokul0880/register-app-pipeline.git'
+                git branch: 'main', url: 'https://github.com/gokul-badrappan/register-app-pipeline.git'
             }
         }
 
