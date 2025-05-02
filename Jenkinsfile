@@ -2,7 +2,7 @@ pipeline {
     agent { label "Jenkins-Agent" }
 
     environment {
-        APP_NAME = "register-app-pipeline"
+        APP_NAME = "gokul0880/register-app-pipeline"
     }
 
     stages {
@@ -20,21 +20,21 @@ pipeline {
             }
         }
 
-        stage("Fetch Latest Docker Image Tag") {
+        stage("Get Latest Image Tag from Docker Hub") {
             steps {
                 script {
-                    def latestTag = sh(
-                        script: """
-                            curl -s https://registry.hub.docker.com/v2/repositories/gokul0880/${APP_NAME}/tags \\
-                            | jq -r '.results[].name' \\
-                            | grep -E '^[0-9]+$' \\
-                            | sort -nr \\
-                            | head -n 1
-                        """,
+                    def tagsJson = sh(
+                        script: 'curl -s https://hub.docker.com/v2/repositories/gokul0880/register-app-pipeline/tags?page_size=1',
                         returnStdout: true
                     ).trim()
-                    env.IMAGE_TAG = latestTag
-                    echo "Fetched latest image tag: ${env.IMAGE_TAG}"
+
+                    def tag = sh(
+                        script: "echo '${tagsJson}' | jq -r '.results[0].name'",
+                        returnStdout: true
+                    ).trim()
+
+                    env.IMAGE_TAG = tag
+                    echo "Latest tag fetched: ${env.IMAGE_TAG}"
                 }
             }
         }
@@ -44,7 +44,9 @@ pipeline {
                 sh """
                     echo "Before update:"
                     cat deployment.yaml
-                    sed -i "s|image:.*|image: gokul0880/${APP_NAME}:${IMAGE_TAG}|g" deployment.yaml
+
+                    sed -i "s|image:.*|image: ${APP_NAME}:${IMAGE_TAG}|g" deployment.yaml
+
                     echo "After update:"
                     cat deployment.yaml
                 """
@@ -58,7 +60,7 @@ pipeline {
                         git config --global user.name "gokul-badrappan"
                         git config --global user.email "gokul0880@gmail.com"
                         git add deployment.yaml
-                        git commit -m "CD: Updated Deployment Manifest to ${APP_NAME}:${IMAGE_TAG}" || echo "No changes to commit"
+                        git commit -m "Auto-updated to latest tag ${IMAGE_TAG}" || echo "No changes to commit"
                         git push https://github.com/gokul-badrappan/gitops-register-app main
                     """
                 }
