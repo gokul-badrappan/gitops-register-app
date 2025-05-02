@@ -1,6 +1,10 @@
 pipeline {
     agent { label "Jenkins-Agent" }
 
+    parameters {
+        string(name: 'IMAGE_TAG', defaultValue: '', description: 'Tag of the image to deploy')
+    }
+
     environment {
         APP_NAME = "gokul0880/register-app-pipeline"
     }
@@ -17,25 +21,6 @@ pipeline {
                 git branch: 'main',
                     credentialsId: 'github',
                     url: 'https://github.com/gokul-badrappan/gitops-register-app'
-            }
-        }
-
-        stage("Get Latest Image Tag from Docker Hub") {
-            steps {
-                script {
-                    def tagsJson = sh(
-                        script: 'curl -s https://hub.docker.com/v2/repositories/gokul0880/register-app-pipeline/tags?page_size=1',
-                        returnStdout: true
-                    ).trim()
-
-                    def tag = sh(
-                        script: "echo '${tagsJson}' | jq -r '.results[0].name'",
-                        returnStdout: true
-                    ).trim()
-
-                    env.IMAGE_TAG = tag
-                    echo "Latest tag fetched: ${env.IMAGE_TAG}"
-                }
             }
         }
 
@@ -60,7 +45,7 @@ pipeline {
                         git config --global user.name "gokul-badrappan"
                         git config --global user.email "gokul0880@gmail.com"
                         git add deployment.yaml
-                        git commit -m "Auto-updated to latest tag ${IMAGE_TAG}" || echo "No changes to commit"
+                        git commit -m "🔁 Auto-updated to ${IMAGE_TAG}" || echo "No changes to commit"
                         git push https://github.com/gokul-badrappan/gitops-register-app main
                     """
                 }
